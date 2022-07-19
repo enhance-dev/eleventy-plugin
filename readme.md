@@ -53,7 +53,7 @@ export default function header ({ html }) {
 
 ```javascript
 /** elements/footer.mjs */
-export default function header ({ html, state }) {
+export default function footer ({ html, state }) {
   return html`
   <footer>
     <p>footer here</p>
