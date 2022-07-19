@@ -22,6 +22,18 @@ Add some handy shortcuts to `scripts` in `package.json`.
 }
 ```
 
+Add the `@enhance/plugin-eleventy` to `.eleventy.js` config file.
+
+```javascript
+let plugin = require('@enhance/eleventy-plugin')
+
+module.exports = function (eleventyConfig) {
+  let extension = 'html'
+  eleventyConfig.addTemplateFormats(extension)
+  eleventyConfig.addExtension(extension, plugin)
+}
+```
+
 Write some HTML.
 
 ```bash
@@ -34,14 +46,14 @@ Create some custom elements in a folder named `elements`.
 
 ```javascript
 /** elements/header.mjs */
-export default async function header ({ html }) {
+export default function header ({ html }) {
   return html`<header> my cool header</header>`
 }
 ```
 
 ```javascript
 /** elements/footer.mjs */
-export default async function header ({ html, state }) {
+export default function header ({ html, state }) {
   return html`
   <footer>
     <p>footer here</p>
@@ -51,11 +63,11 @@ export default async function header ({ html, state }) {
 }
 ```
 
-Create `elements/elements.mjs` to define custom elements tag names.
+Create `elements/elements.mjs` to define custom element tag names.
 
 ```javascript
 import header from './header.mjs'
-import footer from './header.mjs'
+import footer from './footer.mjs'
 
 let elements = {
   'my-header': header,
@@ -65,4 +77,15 @@ let elements = {
 export default elements
 ```
 
-Run `npm start` and preview at `http://localhost:8080`.
+Run `npm start`, and preview at `http://localhost:8080`.
+
+---
+
+Add `index.json` with some default data, and preview result in the footer.
+
+```json
+{
+  "initialState": { "custom": "data", "is": "here" }
+}
+```
+
