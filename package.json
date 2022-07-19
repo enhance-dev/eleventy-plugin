@@ -1,0 +1,16 @@
+{
+  "name": "@enhance/eleventy-plugin",
+  "version": "1.0.0-RC0",
+  "main": "plugin.js",
+  "scripts": {
+    "build": "rollup -c",
+    "start": "eleventy --serve"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^1.0.1",
+    "@enhance/ssr": "^2.3.3",
+    "@rollup/plugin-commonjs": "^22.0.1",
+    "@rollup/plugin-json": "^4.1.0",
+    "@rollup/plugin-node-resolve": "^13.3.0"
+  }
+}

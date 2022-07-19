@@ -1,0 +1,7 @@
+{
+  "initialState": {
+    "whatever": true,
+    "you": 1,
+    "want": "yay"
+  }
+}
