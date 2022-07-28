@@ -36,13 +36,14 @@ module.exports = function (eleventyConfig) {
 
 Write some HTML.
 
-```bash
-echo "<my-header></my-header>" > index.html
-echo "<strong>powerful html here</strong>" >> index.html
-echo "<my-footer></my-footer>" >> index.html
+```html
+<!-- index.html -->
+<el-header></el-header>
+<strong>powerful html here</strong>
+<my-footer></my-footer>
 ```
 
-Create some custom elements in a folder named `elements`.
+Define custom element templates in a folder named `elements`.
 
 ```javascript
 /** elements/header.mjs */
@@ -63,23 +64,9 @@ export default function footer ({ html, state }) {
 }
 ```
 
-Create `elements/elements.mjs` to define custom element tag names.
-
-```javascript
-import header from './header.mjs'
-import footer from './footer.mjs'
-
-let elements = {
-  'my-header': header,
-  'my-footer': footer
-}
-
-export default elements
-```
-
 Run `npm start`, and preview at `http://localhost:8080`.
 
----
+## Add data
 
 Add `index.json` with some default data, and preview result in the footer.
 
@@ -88,4 +75,20 @@ Add `index.json` with some default data, and preview result in the footer.
   "initialState": { "custom": "data", "is": "here" }
 }
 ```
+
+## Rename elements
+
+If you want to configure your own element tag names create `elements.mjs` to explicitly define tags:
+
+```javascript
+import header from './elements/header.mjs'
+import footer from './elements/footer.mjs'
+
+export default {
+  'sweet-header': header,
+  'sweet-footer': footer
+}
+```
+
+> Don't forget to update your coresponding `index.html`!
 

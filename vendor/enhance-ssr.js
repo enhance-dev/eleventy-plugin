@@ -7418,13 +7418,8 @@ function decode(value) {
     : value
 }
 
-let count = 0;
-function getID() {
-  return `✨${count++}`.toString(16)
-}
-
 function Enhancer(options={}) {
-  let {
+  const {
     initialState={},
     elements=[],
     scriptTransforms=[],
@@ -7432,15 +7427,47 @@ function Enhancer(options={}) {
   } = options;
   const store = Object.assign({}, initialState);
 
+  let count = 0;
+  function getID() {
+    return `✨${count++}`.toString(16)
+  }
+
+  function processCustomElements(node, elements, store, styleTransforms) {
+    const authoredTemplates = [];
+    const collectedStyles = [];
+    const find = (node) => {
+      for (const child of node.childNodes) {
+        if (isCustomElement(child.tagName)) {
+          if (child.childNodes.length) {
+            let id = child.attrs.find(attr => attr.name === 'id')?.value;
+            if(!id) {
+              id = getID();
+              child.attrs.push({ name: 'id', value: id });
+            }
+            const frag = parseFragment('');
+            frag.childNodes = [...child.childNodes];
+            authoredTemplates.push(template({ name: id, fragment: frag }));
+          }
+          const { frag:expandedTemplate, styles:stylesToCollect } = expandTemplate(child, elements, store, styleTransforms);
+          collectedStyles.push(stylesToCollect);
+          fillSlots(child, expandedTemplate);
+        }
+        if (child.childNodes) find(child);
+      }
+    };
+    find(node);
+    return {
+      authoredTemplates,
+      collectedStyles
+    }
+  }
+
   return function html(strings, ...values) {
     const doc = parse(render(strings, ...values));
     const html = doc.childNodes.find(node => node.tagName === 'html');
     const body = html.childNodes.find(node => node.tagName === 'body');
     const head = html.childNodes.find(node => node.tagName === 'head');
     const { authoredTemplates, collectedStyles } = processCustomElements(body, elements, store, styleTransforms);
-
-    elements = elements.default || elements
-
     const templateNames = Object.keys(elements);
     const templates = parseFragment(templateNames
       .map(name => {
@@ -7487,35 +7514,6 @@ function render(strings, ...values) {
   return collect.join('')
 }
 
-function processCustomElements(node, elements, store, styleTransforms) {
-  const authoredTemplates = [];
-  const collectedStyles = [];
-  const find = (node) => {
-    for (const child of node.childNodes) {
-      if (isCustomElement(child.tagName)) {
-        if (child.childNodes.length) {
-          let id = child.attrs.find(attr => attr.name === 'id')?.value;
-          if(!id) {
-            id = getID();
-            child.attrs.push({ name: 'id', value: id });
-          }
-          const frag = parseFragment('');
-          frag.childNodes = [...child.childNodes];
-          authoredTemplates.push(template({ name: id, fragment: frag }));
-        }
-        const { frag:expandedTemplate, styles:stylesToCollect } = expandTemplate(child, elements, store, styleTransforms);
-        collectedStyles.push(stylesToCollect);
-        fillSlots(child, expandedTemplate);
-      }
-      if (child.childNodes) find(child);
-    }
-  };
-  find(node);
-  return {
-    authoredTemplates,
-    collectedStyles
-  }
-}
 
 function expandTemplate(node, elements, store, styleTransforms) {
   const tagName = node.tagName;
@@ -7542,12 +7540,12 @@ function expandTemplate(node, elements, store, styleTransforms) {
 function renderTemplate({ name, elements, attrs=[], store={} }) {
   attrs = attrs ? attrsToState(attrs) : {};
   const state = { attrs, store };
-  elements = elements.default || elements
-  try {
-    return parseFragment(elements[name]({ html: render, state }))
+  const template = elements[name];
+  if (template) {
+    return parseFragment(template({ html: render, state }))
   }
-  catch(err) {
-    throw new Error(`Issue rendering template for ${name}.\n${err.message}`)
+  else {
+    console.warn(`Issue rendering template for ${name}.\n`);
   }
 }
 
@@ -7579,17 +7577,18 @@ function fillSlots(node, template) {
           const insertAttrsLength = insertAttrs.length;
           for (let i=0; i < insertAttrsLength; i++) {
             const attr = insertAttrs[i];
-            const insertSlot = attr.value;
-
-            if (insertSlot === slotName) {
-              const slotParentChildNodes = slot.parentNode.childNodes;
-              slotParentChildNodes.splice(
-                slotParentChildNodes
-                  .indexOf(slot),
-                1,
-                insert
-              );
-              usedSlots.push(slot);
+            if (attr.name === 'slot') {
+              const insertSlot = attr.value;
+              if (insertSlot === slotName) {
+                const slotParentChildNodes = slot.parentNode.childNodes;
+                slotParentChildNodes.splice(
+                  slotParentChildNodes
+                    .indexOf(slot),
+                  1,
+                  insert
+                );
+                usedSlots.push(slot);
+              }
             }
           }
         }
@@ -7716,13 +7715,15 @@ function replaceSlots(node, slots) {
 
 function applyScriptTransforms({ node, scriptTransforms, tagName }) {
   const attrs = node?.attrs || [];
-  const raw = node.childNodes[0].value;
-  let out = raw;
-  scriptTransforms.forEach(transform => {
-    out = transform({ attrs, raw: out, tagName });
-  });
-  if (!out.length) return
-  node.childNodes[0].value = out;
+  if (node.childNodes.length) {
+    const raw = node.childNodes[0].value;
+    let out = raw;
+    scriptTransforms.forEach(transform => {
+      out = transform({ attrs, raw: out, tagName });
+    });
+    if (!out.length) return
+    node.childNodes[0].value = out;
+  }
   return node
 }
 
@@ -7744,8 +7745,10 @@ function applyTransforms({ fragment, name, scriptTransforms, styleTransforms }) 
 
   if (scriptNodes.length && scriptTransforms.length) {
     scriptNodes.forEach((s) => {
-      const scriptNode = applyScriptTransforms({ node: s, scriptTransforms, tagName: name });
-      s.childNodes[0].value = scriptNode.childNodes[0].value;
+        const scriptNode = applyScriptTransforms({ node: s, scriptTransforms, tagName: name });
+      if (scriptNode && scriptNode.childNodes.length) {
+        s.childNodes[0].value = scriptNode.childNodes[0].value;
+      }
     });
   }
 
