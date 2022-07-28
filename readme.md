@@ -40,7 +40,7 @@ Write some HTML.
 <!-- index.html -->
 <el-header></el-header>
 <strong>powerful html here</strong>
-<my-footer></my-footer>
+<el-footer></el-footer>
 ```
 
 Define custom element templates in a folder named `elements`.
