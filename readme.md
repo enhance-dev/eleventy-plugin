@@ -90,5 +90,5 @@ export default {
 }
 ```
 
-> Don't forget to update your coresponding `index.html`!
+> Don't forget to update your corresponding `index.html`!
 
