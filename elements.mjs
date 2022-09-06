@@ -1,7 +1,7 @@
-import header from './elements/header.mjs'
-import footer from './elements/footer.mjs'
+import header from './elements/my-header.mjs'
+import footer from './elements/my-footer.mjs'
 
 export default {
-  'sweet-header': header,
-  'sweet-footer': footer
+  'my-header': header,
+  'my-footer': footer
 }

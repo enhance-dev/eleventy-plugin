@@ -17,7 +17,7 @@ Add some handy shortcuts to `scripts` in `package.json`.
 ```json
 {
   "scripts": {
-    "start": "npx @11ty/eleventy"
+    "start": "npx @11ty/eleventy --serve"
   }
 }
 ```
@@ -38,22 +38,22 @@ Write some HTML.
 
 ```html
 <!-- index.html -->
-<el-header></el-header>
+<my-header></my-header>
 <strong>powerful html here</strong>
-<el-footer></el-footer>
+<my-footer></my-footer>
 ```
 
 Define custom element templates in a folder named `elements`.
 
 ```javascript
-/** elements/header.mjs */
+/** elements/my-header.mjs */
 export default function header ({ html }) {
   return html`<header> my cool header</header>`
 }
 ```
 
 ```javascript
-/** elements/footer.mjs */
+/** elements/my-footer.mjs */
 export default function footer ({ html, state }) {
   return html`
   <footer>
@@ -78,15 +78,15 @@ Add `index.json` with some default data, and preview result in the footer.
 
 ## Rename elements
 
-If you want to configure your own element tag names create `elements.mjs` to explicitly define tags:
+If you want to configure your own element tag names create `./elements.mjs` to explicitly define tags:
 
 ```javascript
-import header from './elements/header.mjs'
-import footer from './elements/footer.mjs'
+import header from './elements/my-header.mjs'
+import footer from './elements/my-footer.mjs'
 
 export default {
-  'sweet-header': header,
-  'sweet-footer': footer
+  'my-header': header,
+  'my-footer': footer
 }
 ```
 

@@ -5,7 +5,7 @@ let { existsSync: exists, readdirSync: ls } = require('fs')
 module.exports = {
   async compile (inputContent) {
     return async function compiler ({ initialState={} }) {
-      let elements = await read() 
+      let elements = await read()
       let html = enhance({ elements, initialState })
       return html`${ inputContent }`
     }
@@ -26,7 +26,7 @@ async function read () {
     // generate based on elements/ directory
     let els = {}
     let raw = ls(pathToDirectory)
-    for (let e of raw) { 
+    for (let e of raw) {
       let tag = `el-${e.replace('.mjs', '')}`
       let mod = await import(join(pathToDirectory, e))
       els[tag] = mod.default
@@ -34,7 +34,7 @@ async function read () {
     return els
   }
   else {
-    // generate based on page.html or page.mjs requested 
+    // generate based on page.html or page.mjs requested
     throw Error('cannot find `elements.mjs` or an `elements/` folder')
   }
 }
