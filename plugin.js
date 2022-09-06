@@ -27,7 +27,7 @@ async function read () {
     let els = {}
     let raw = ls(pathToDirectory)
     for (let e of raw) {
-      let tag = `el-${e.replace('.mjs', '')}`
+      let tag = e.replace('.mjs', '')
       let mod = await import(join(pathToDirectory, e))
       els[tag] = mod.default
     }

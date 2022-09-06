@@ -7427,38 +7427,37 @@ function Enhancer(options={}) {
   } = options;
   const store = Object.assign({}, initialState);
 
-  let count = 0;
-  function getID() {
-    return `✨${count++}`.toString(16)
-  }
-
-  function processCustomElements(node, elements, store, styleTransforms) {
-    const authoredTemplates = [];
+  function processCustomElements(node, elements, store, styleTransforms, scriptTransforms) {
     const collectedStyles = [];
+    let collectedScripts = [];
     const find = (node) => {
       for (const child of node.childNodes) {
         if (isCustomElement(child.tagName)) {
           if (child.childNodes.length) {
-            let id = child.attrs.find(attr => attr.name === 'id')?.value;
-            if(!id) {
-              id = getID();
-              child.attrs.push({ name: 'id', value: id });
-            }
             const frag = parseFragment('');
             frag.childNodes = [...child.childNodes];
-            authoredTemplates.push(template({ name: id, fragment: frag }));
           }
-          const { frag:expandedTemplate, styles:stylesToCollect } = expandTemplate(child, elements, store, styleTransforms);
-          collectedStyles.push(stylesToCollect);
-          fillSlots(child, expandedTemplate);
+          if (elements[child.tagName]) {
+            const {
+              frag:expandedTemplate,
+              styles:stylesToCollect,
+              scripts:scriptsToCollect
+            } = expandTemplate(child, elements, store, styleTransforms, scriptTransforms);
+            collectedScripts.push(scriptsToCollect);
+            collectedStyles.push(stylesToCollect);
+            fillSlots(child, expandedTemplate);
+          }
         }
-        if (child.childNodes) find(child);
+        if (child.childNodes) {
+          find(child);
+        }
       }
     };
     find(node);
+
     return {
-      authoredTemplates,
-      collectedStyles
+      collectedStyles,
+      collectedScripts
     }
   }
 
@@ -7467,25 +7466,31 @@ function Enhancer(options={}) {
     const html = doc.childNodes.find(node => node.tagName === 'html');
     const body = html.childNodes.find(node => node.tagName === 'body');
     const head = html.childNodes.find(node => node.tagName === 'head');
-    const { authoredTemplates, collectedStyles } = processCustomElements(body, elements, store, styleTransforms);
-    const templateNames = Object.keys(elements);
-    const templates = parseFragment(templateNames
-      .map(name => {
-        const renderedFragment = renderTemplate({ name, elements, store });
-        const { scriptNodes, transformedFragment }  = applyTransforms({
-          fragment: renderedFragment,
-          scriptTransforms,
-          styleTransforms,
-          name
-        });
-        appendNodes(body, scriptNodes);
-        return template({ fragment: transformedFragment, name})
-      }).join('')
-    );
+    const {
+      collectedStyles,
+      collectedScripts
+    } = processCustomElements(body, elements, store, styleTransforms, scriptTransforms);
+    if (collectedScripts.length) {
+      const uniqueScripts = collectedScripts.flat().reduce((acc, script) => {
+        const scriptSrc = script?.attrs?.find(a => a.name === 'src');
+        const scriptSrcValue = scriptSrc?.value;
+        const scriptContents = script?.childNodes?.[0]?.value;
+        if (scriptContents || scriptSrc) {
+          return {
+            ...acc,
+            [scriptContents || scriptSrcValue]: script
+          }
+        }
+        return {...acc}
+      }, {});
 
+      appendNodes(body, Object.values(uniqueScripts));
+    }
     if (collectedStyles.length) {
       const uniqueStyles = collectedStyles.flat().reduce((acc, style) => {
-        if (style?.childNodes?.[0]?.value) return { ...acc, [style.childNodes[0].value]: '' };
+        if (style?.childNodes?.[0]?.value) {
+          return { ...acc, [style.childNodes[0].value]: '' }
+        }
         return {...acc}
       }, { });
       const mergedCssString  = Object.keys(uniqueStyles).join('\n');
@@ -7496,11 +7501,6 @@ function Enhancer(options={}) {
       }
     }
 
-    appendChildNodes(body, templates);
-    if (authoredTemplates) {
-      const ats = parseFragment(authoredTemplates.join(''));
-      appendChildNodes(body, ats);
-    }
     return serialize(doc).replace(/__b_\d+/g, '')
   }
 }
@@ -7515,7 +7515,7 @@ function render(strings, ...values) {
 }
 
 
-function expandTemplate(node, elements, store, styleTransforms) {
+function expandTemplate(node, elements, store, styleTransforms, scriptTransforms) {
   const tagName = node.tagName;
   const frag = renderTemplate({
     name: node.tagName,
@@ -7524,9 +7524,14 @@ function expandTemplate(node, elements, store, styleTransforms) {
     store
   }) || '';
   let styles= [];
+  let scripts = [];
   for (const node of frag.childNodes) {
     if (node.nodeName === 'script') {
       frag.childNodes.splice(frag.childNodes.indexOf(node), 1);
+      const transformedScript = applyScriptTransforms({ node, scriptTransforms, tagName });
+      if (transformedScript) {
+        scripts.push(transformedScript);
+      }
     }
     if (node.nodeName === 'style') {
       frag.childNodes.splice(frag.childNodes.indexOf(node), 1);
@@ -7534,18 +7539,22 @@ function expandTemplate(node, elements, store, styleTransforms) {
       if (transformedStyle) { styles.push(transformedStyle); }
     }
   }
-  return { frag, styles }
+  return { frag, styles, scripts }
 }
 
 function renderTemplate({ name, elements, attrs=[], store={} }) {
   attrs = attrs ? attrsToState(attrs) : {};
   const state = { attrs, store };
-  const template = elements[name];
-  if (template) {
+  const templateRenderFunction = elements[name]?.render;
+  const template = templateRenderFunction
+    ? elements[name].render
+    : elements[name];
+
+  if (template && typeof template === 'function') {
     return parseFragment(template({ html: render, state }))
   }
   else {
-    console.warn(`Issue rendering template for ${name}.\n`);
+    throw new Error(`Could not find the template function for ${name}`)
   }
 }
 
@@ -7600,6 +7609,8 @@ function fillSlots(node, template) {
       const children = node.childNodes
         .filter(n => !inserts.includes(n));
       const slotParentChildNodes = slot.parentNode.childNodes;
+      slotParentChildNodes
+          .indexOf(slot);
       slotParentChildNodes.splice(
         slotParentChildNodes
           .indexOf(slot),
@@ -7626,8 +7637,7 @@ function findSlots(node) {
       if (child.tagName === 'slot') {
         elements.push(child);
       }
-      if (!isCustomElement(child.tagName) &&
-        child.childNodes) {
+      if (child.childNodes) {
         find(child);
       }
     }
@@ -7640,17 +7650,9 @@ function findInserts(node) {
   const elements = [];
   const find = (node) => {
     for (const child of node.childNodes) {
-      const attrs = child.attrs;
-      if (attrs) {
-        for (let i=0; i < attrs.length; i++) {
-          if (attrs[i].name === 'slot') {
-            elements.push(child);
-          }
-        }
-      }
-      if (!isCustomElement(child.tagName) &&
-          child.childNodes) {
-        find(child);
+      const hasSlot = child.attrs?.find(attr => attr.name === 'slot');
+      if (hasSlot) {
+        elements.push(child);
       }
     }
   };
@@ -7668,7 +7670,6 @@ function replaceSlots(node, slots) {
         return !n.nodeName.startsWith('#')
       }
     );
-    // If this is a named slot
     if (value) {
       if (!slotChildren.length) {
         // Only has text nodes
@@ -7687,8 +7688,8 @@ function replaceSlots(node, slots) {
       else if (slotChildren.length > 1) {
          // Has multiple children
          const wrapperDiv = {
-          nodeName: asTag ? asTag : 'div',
-          tagName: asTag ? asTag : 'div',
+          nodeName: asTag ? asTag : 'span',
+          tagName: asTag ? asTag : 'span',
           attrs: [{ value, name }],
           namespaceURI: 'http://www.w3.org/1999/xhtml',
           childNodes: []
@@ -7701,14 +7702,15 @@ function replaceSlots(node, slots) {
       else {
         slotChildren[0].attrs.push({ value, name });
       }
+
+      const slotParentChildNodes = slot.parentNode.childNodes;
+      slotParentChildNodes.splice(
+        slotParentChildNodes
+          .indexOf(slot),
+        1,
+        ...slot.childNodes
+      );
     }
-    const slotParentChildNodes = slot.parentNode.childNodes;
-    slotParentChildNodes.splice(
-      slotParentChildNodes
-        .indexOf(slot),
-      1,
-      ...slot.childNodes
-    );
   });
   return node
 }
@@ -7721,8 +7723,9 @@ function applyScriptTransforms({ node, scriptTransforms, tagName }) {
     scriptTransforms.forEach(transform => {
       out = transform({ attrs, raw: out, tagName });
     });
-    if (!out.length) return
-    node.childNodes[0].value = out;
+    if (out.length) {
+      node.childNodes[0].value = out;
+    }
   }
   return node
 }
@@ -7737,51 +7740,6 @@ function applyStyleTransforms({ node, styleTransforms, tagName, context='' }) {
   if (!out.length) { return }
   node.childNodes[0].value = out;
   return node
-}
-
-function applyTransforms({ fragment, name, scriptTransforms, styleTransforms }) {
-  const scriptNodes = fragment.childNodes.filter(n => n.nodeName === 'script');
-  const styleNodes = fragment.childNodes.filter(n => n.nodeName === 'style');
-
-  if (scriptNodes.length && scriptTransforms.length) {
-    scriptNodes.forEach((s) => {
-        const scriptNode = applyScriptTransforms({ node: s, scriptTransforms, tagName: name });
-      if (scriptNode && scriptNode.childNodes.length) {
-        s.childNodes[0].value = scriptNode.childNodes[0].value;
-      }
-    });
-  }
-
-  let prune = [];
-  if (styleNodes.length && styleTransforms.length) {
-    styleNodes.forEach((s,i) => {
-      const styleNode = applyStyleTransforms({ node: s, styleTransforms,tagName: name, context:"template" });
-      if (styleNode && s.childNodes.length) {
-        s.childNodes[0].value = styleNode.childNodes[0].value;
-      } else { prune.push(i); }
-    });
-  }
-  prune.forEach((i) => fragment.childNodes.splice(fragment.childNodes.indexOf(styleNodes[i]), 1) );
-
-
-  scriptNodes.forEach(s => fragment.childNodes.splice(fragment.childNodes.indexOf(s), 1));
-
-  return {
-    transformedFragment: fragment,
-    scriptNodes,
-  }
-}
-
-function template({ fragment, name }) {
-  return `
-<template id="${name}-template">
-  ${serialize(fragment)}
-</template>
-  `
-}
-
-function appendChildNodes(target, node) {
-  target.childNodes.push(...node.childNodes);
 }
 
 function appendNodes(target, nodes) {
