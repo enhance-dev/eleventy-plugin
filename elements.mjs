@@ -1,7 +1,9 @@
-import header from './elements/my-header.mjs'
-import footer from './elements/my-footer.mjs'
+import { importWithoutCache } from './utils.js'
+
+const header = await importWithoutCache('./elements/my-header.mjs')
+const footer = await importWithoutCache('./elements/my-footer.mjs')
 
 export default {
-  'my-header': header,
-  'my-footer': footer
+  'my-header': header.default,
+  'my-footer': footer.default
 }

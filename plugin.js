@@ -1,6 +1,7 @@
 let enhance = require('./vendor/enhance-ssr.js')
 let { join } = require('path')
 let { existsSync: exists, readdirSync: ls } = require('fs')
+let { importWithoutCache } = require('./utils')
 
 module.exports = {
   async compile (inputContent) {
@@ -19,7 +20,7 @@ async function read () {
 
   if (exists(pathToModule)) {
     // read explicit elements manifest
-    let els = await import(pathToModule)
+    let els = await importWithoutCache(pathToModule)
     return els.default || els
   }
   else if (exists(pathToDirectory)) {
@@ -28,7 +29,7 @@ async function read () {
     let raw = ls(pathToDirectory)
     for (let e of raw) {
       let tag = e.replace('.mjs', '')
-      let mod = await import(join(pathToDirectory, e))
+      let mod = await importWithoutCache(join(pathToDirectory, e))
       els[tag] = mod.default
     }
     return els
